@@ -1,110 +1,274 @@
-# Ethical Twin Environment
+# Ethical Twin OpenEnv Environment
 
-This project is a small, beginner-friendly reinforcement learning environment for a virtual clinical trial.
+A synthetic healthcare simulation environment built using the OpenEnv pattern for reinforcement learning experiments.
 
-It creates synthetic patient data and lets an agent choose one of four actions:
+This project simulates virtual patients and allows an agent to choose safe drug dosage decisions. The environment produces step-based rewards so reinforcement learning agents can learn safer treatment strategies without using real patient data.
 
-- `low_dose`
-- `medium_dose`
-- `high_dose`
-- `stop_drug`
+---
 
-The environment gives a positive reward when the dosage choice matches the patient risk profile and a negative reward when the choice is unsafe or poorly matched.
+# Problem Statement
 
-## Project Structure
+Modern healthcare AI systems face two major challenges:
 
-- `env/env.py` - core environment logic
-- `models.py` - Pydantic models for observations, state, and step results
-- `server/environment.py` - wrapper that converts environment output into models
-- `server/app.py` - FastAPI server
-- `client.py` - simple `requests` client
-- `run_local.py` - local demo using random actions
-- `tasks/` - challenge definitions for easy, medium, and hard levels
-- `graders/` - scoring helpers for each task level
-- `configs/openenv.yaml` - OpenEnv-style environment metadata and action schema
+1. **Privacy constraints** – Hospitals cannot freely share real patient records due to regulations.
+2. **Bias in datasets** – Many clinical models are trained using limited demographic data, reducing reliability for underrepresented populations.
 
-## Install
+Because of these issues, testing new treatment strategies using real patient data becomes difficult.
 
-Create a virtual environment if you want, then install the dependencies:
+---
 
-```bash
+# Solution
+
+The Ethical Twin Environment simulates **synthetic patient profiles** and allows agents to experiment with treatment strategies in a safe digital environment.
+
+The system creates virtual patients with simulated vitals and risk scores.
+Agents must choose the correct drug dosage strategy based on the patient's risk profile.
+
+This approach allows experimentation without exposing real medical records.
+
+---
+
+# Observation Schema
+
+Each environment step returns a simulated patient observation containing:
+
+* **bp** – simulated blood pressure
+* **heart_rate** – simulated heart rate
+* **genetic_risk** – genetic risk factor between 0 and 1
+* **side_effect_risk** – predicted probability of drug side effects
+
+Example observation:
+
+```
+{
+  "bp": 120,
+  "heart_rate": 82.3,
+  "genetic_risk": 0.45,
+  "side_effect_risk": 0.18
+}
+```
+
+---
+
+# Action Space
+
+The agent can choose one of four treatment decisions:
+
+* **low_dose** – minimal medication dosage
+* **medium_dose** – standard dosage
+* **high_dose** – aggressive treatment dosage
+* **stop_drug** – discontinue the medication
+
+---
+
+# Reward Function
+
+The environment provides **step-based feedback**.
+
+Rewards encourage safe treatment strategies.
+
+Typical reward rules:
+
+* **+1.0** when the dosage matches the patient risk profile
+* **-0.5** when the dosage is poorly matched
+* **+1.5** when stopping the drug prevents high side-effect risk
+
+This reward design helps reinforcement learning agents gradually learn better decisions.
+
+---
+
+# Project Structure
+
+```
+ethical_twin_env/
+
+env/
+    env.py
+
+server/
+    environment.py
+    app.py
+
+tasks/
+    easy_task.py
+    medium_task.py
+    hard_task.py
+
+graders/
+    easy_grader.py
+    medium_grader.py
+    hard_grader.py
+
+configs/
+    openenv.yaml
+
+models.py
+client.py
+policy.py
+baseline_inference.py
+run_local.py
+requirements.txt
+README.md
+```
+
+---
+
+# Installation
+
+Install dependencies:
+
+```
 pip install -r requirements.txt
 ```
 
-## Run the local demo
+(Optional) create a virtual environment first.
 
-```bash
+---
+
+# Run Local Simulation
+
+Run the environment locally without the API:
+
+```
 python run_local.py
 ```
 
-This runs the environment directly and prints each random step until the episode ends after 10 steps.
+This will simulate a full episode and print observations, actions, and rewards for each step.
 
-## Run the API server
+Episodes end automatically after **10 steps**.
 
-```bash
+---
+
+# Run the API Server
+
+Start the FastAPI server:
+
+```
 uvicorn server.app:app --reload
 ```
 
-The server exposes these endpoints:
+Once running, the environment exposes the following endpoints:
 
-- `POST /reset`
-- `POST /step`
-- `GET /state`
-
-## Use the client
-
-With the server running, you can try the client from Python:
-
-```python
-from client import EthicalTwinClient
-
-client = EthicalTwinClient()
-print(client.reset())
-print(client.step("medium_dose"))
-print(client.state())
+```
+POST /reset
+POST /step
+GET /state
 ```
 
-## Notes
+Interactive API documentation is available at:
 
-- The environment uses synthetic data only.
-- The episode ends after 10 steps.
-- The code is intentionally simple so it is easy to extend for experiments.
+```
+http://127.0.0.1:8000/docs
+```
 
-## Tasks
+---
 
-The project now includes three beginner-friendly task levels:
+# Baseline Agent
 
-- Easy (`tasks/easy_task.py`): one fixed patient case and one correct action.
-- Medium (`tasks/medium_task.py`): a 5-step simulation task.
-- Hard (`tasks/hard_task.py`): a 10-step optimization task.
+The repository includes a simple rule-based baseline agent in **baseline_inference.py**.
 
-These tasks can be used to test simple policies and compare different action strategies.
+The baseline policy works as follows:
 
-## Grading System
+```
+if side_effect_risk > 0.25:
+    action = stop_drug
+elif genetic_risk > 0.6:
+    action = low_dose
+else:
+    action = medium_dose
+```
 
-The `graders` folder contains simple scoring functions:
+This baseline demonstrates how an agent interacts with the environment API.
 
-- `grade_easy(predicted, correct)` returns `1.0` for an exact match, else `0.0`.
-- `grade_medium(total_reward)` normalizes using `total_reward / 5` and clamps to `0..1`.
-- `grade_hard(total_reward)` normalizes using `total_reward / 10` and clamps to `0..1`.
+Run it with:
 
-This makes evaluation easy to understand while still giving a consistent score range.
+```
+python baseline_inference.py
+```
 
-## OpenEnv Configuration
+---
 
-`configs/openenv.yaml` describes the environment in a simple OpenEnv-style format:
+# Tasks
 
-- Environment name and description
-- Observation schema
-- Action list
-- Reward style
-- Available tasks (`easy`, `medium`, `hard`)
+The environment includes three task levels to evaluate decision policies.
 
-## Real-World Healthcare Use Case
+### Easy Task
 
-This project mirrors a safe prototype of treatment optimization in healthcare.
+A single patient case with one correct treatment decision.
 
-- Privacy solution: it only uses synthetic patient data, so no real patient records are exposed.
-- Bias solution: tasks and grading are explicit and auditable, making it easier to inspect decisions and improve fairness across different simulated risk profiles.
+### Medium Task
 
-In real deployments, this kind of setup can be part of testing and validation before any clinical decision support tool is considered for real-world use.
+A 5-step patient management simulation.
+
+### Hard Task
+
+A 10-step optimization challenge where the agent must maintain safe treatment decisions over time.
+
+---
+
+# Grading System
+
+Simple grading utilities are included to evaluate performance.
+
+* **grade_easy(predicted, correct)**
+  Returns **1.0** for a correct decision and **0.0** otherwise.
+
+* **grade_medium(total_reward)**
+  Score = `total_reward / 5`, clamped between **0 and 1**.
+
+* **grade_hard(total_reward)**
+  Score = `total_reward / 10`, clamped between **0 and 1**.
+
+This provides a consistent scoring scale for comparing policies.
+
+---
+
+# OpenEnv Configuration
+
+The environment metadata is defined in:
+
+```
+configs/openenv.yaml
+```
+
+It specifies:
+
+* Environment name
+* Observation schema
+* Available actions
+* Reward type
+* Task levels
+
+---
+
+# Real-World Healthcare Use Case
+
+This project demonstrates how reinforcement learning environments can support safer healthcare experimentation.
+
+Key advantages:
+
+**Privacy Protection**
+Only synthetic patient data is used. No real patient records are required.
+
+**Bias Inspection**
+Explicit tasks and grading functions make it easier to analyze decision policies and identify potential biases.
+
+**Safe Experimentation**
+Researchers can test treatment strategies in a controlled environment before applying them to real-world systems.
+
+---
+
+# Future Improvements
+
+Possible extensions include:
+
+* Larger synthetic patient datasets
+* More complex patient risk models
+* Multi-drug treatment strategies
+* Integration with reinforcement learning training pipelines such as GRPO
+
+---
+
+# License
+
+This project is intended for educational and research purposes.
