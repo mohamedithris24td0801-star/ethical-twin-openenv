@@ -1,0 +1,22 @@
+name: EthicalTwinEnv
+description: Virtual clinical trial using synthetic patients
+
+observation:
+  bp: int
+  heart_rate: float
+  genetic_risk: float
+  side_effect_risk: float
+
+actions:
+  - low_dose
+  - medium_dose
+  - high_dose
+  - stop_drug
+
+reward:
+  type: step_based
+
+tasks:
+  - easy
+  - medium
+  - hard
