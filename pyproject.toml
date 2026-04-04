@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ethical-twin-env"
+version = "1.0.0"
+description = "A beginner-friendly reinforcement learning environment for virtual clinical trials using synthetic patients"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Mohamed Ithris", email = "mohamedithris24td0801@gmail.com"}
+]
+keywords = ["reinforcement-learning", "rl", "environment", "clinical-trial", "openenv"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "fastapi>=0.95.0",
+    "pydantic>=2.0.0",
+    "requests>=2.28.0",
+    "uvicorn>=0.20.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "black>=22.0",
+    "flake8>=4.0",
+    "mypy>=0.990",
+]
+
+[project.urls]
+Repository = "https://github.com/mohamedithris24td0801-star/ethical-twin-openenv"
+Documentation = "https://github.com/mohamedithris24td0801-star/ethical-twin-openenv#readme"
+
+[tool.setuptools]
+packages = ["env", "server", "tasks", "graders"]
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311']
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
