@@ -5,56 +5,58 @@ import os
 import uvicorn
 from fastapi import FastAPI, HTTPException
 
-from models import EthicalAction
 from server.environment import EthicalTwinEnvironment, TASKS, grade_task
 
 app = FastAPI(title="ethical-twin-env", version="1.0.0")
-environment = EthicalTwinEnvironment()
+env = EthicalTwinEnvironment()
 
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "healthy"}
+    return {"status": "ok"}
 
 
 @app.get("/tasks")
-def tasks() -> dict[str, list[dict[str, object]]]:
-    return {
-        "tasks": [
+def tasks() -> dict[str, object]:
+    payload = []
+    for task_id in ("task_1", "task_2", "task_3"):
+        task = TASKS[task_id]
+        payload.append(
             {
-                **task,
+                "id": task["id"],
+                "name": task["name"],
+                "difficulty": task["difficulty"],
+                "description": task["description"],
+                "available_actions": task["scenario"]["available_actions"],
+                "grader": "grade_task",
                 "grader_endpoint": "/grader",
             }
-            for task in TASKS.values()
-        ]
-    }
+        )
+    return {"tasks": payload, "total": 3}
 
 
 @app.post("/reset")
-def reset() -> dict[str, object]:
-    state = environment.reset()
-    return state.model_dump()
+def reset(payload: dict[str, object] | None = None) -> dict[str, object]:
+    payload = payload or {}
+    task_id = payload.get("task_id")
+    try:
+        return env.reset(task_id=str(task_id)) if task_id else env.reset()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/step")
 def step(payload: dict[str, object]) -> dict[str, object]:
     action = str(payload.get("action", "")).strip()
     reasoning = str(payload.get("reasoning", "")).strip()
-    task_id = str(payload.get("task_id", environment.current_task_id)).strip() or environment.current_task_id
-    environment.current_task_id = task_id if task_id in TASKS else environment.current_task_id
-    state = environment.step(
-        EthicalAction(
-            task_id=environment.current_task_id,
-            action=action,
-            reasoning=reasoning,
-        )
-    )
-    return state.model_dump()
+    if not action:
+        raise HTTPException(status_code=400, detail="Missing action")
+    return env.step(action=action, reasoning=reasoning)
 
 
 @app.get("/state")
 def state() -> dict[str, object]:
-    return environment.state().model_dump()
+    return env.state()
 
 
 @app.post("/grader")
@@ -64,7 +66,9 @@ def grader(payload: dict[str, object]) -> dict[str, object]:
     reasoning = str(payload.get("reasoning", "")).strip()
 
     if task_id not in TASKS:
-        raise HTTPException(status_code=404, detail=f"Unknown task_id: {task_id}")
+        raise HTTPException(status_code=400, detail=f"Unknown task_id: {task_id}")
+    if not action:
+        raise HTTPException(status_code=400, detail="Missing action")
 
     score = grade_task(task_id, action, reasoning)
     assert 0.0 < score < 1.0
@@ -73,10 +77,17 @@ def grader(payload: dict[str, object]) -> dict[str, object]:
 
 @app.get("/baseline")
 def baseline() -> dict[str, object]:
-    return {
-        "message": "baseline endpoint ready",
-        "tasks": list(TASKS.keys()),
-    }
+    results = []
+    for task_id in ("task_1", "task_2", "task_3"):
+        task = TASKS[task_id]
+        action = task["scenario"]["optimal_action"]
+        reasoning = "Baseline policy selects the documented optimal action for this ethical scenario."
+        score = grade_task(task_id, action, reasoning)
+        assert 0.0 < score < 1.0
+        results.append({"task_id": task_id, "action": action, "score": score})
+
+    average = sum(item["score"] for item in results) / len(results)
+    return {"results": results, "average_score": average, "total": len(results)}
 
 
 def main() -> None:
