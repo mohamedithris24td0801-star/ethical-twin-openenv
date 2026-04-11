@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 from typing import Any
 
 import requests
@@ -30,7 +29,8 @@ def main() -> None:
     args = parser.parse_args()
 
     state = _reset(args.url)
-    print(json.dumps({"reset_state": state}, indent=2))
+    print(f"[START] url={args.url.rstrip('/')} task_count=3", flush=True)
+    print(f"[STEP] step=0 event=reset task=task_1 state={state}", flush=True)
 
     tasks = [
         ("task_1", "medium_dose", "The patient profile suggests a balanced intervention with attention to safety."),
@@ -38,9 +38,20 @@ def main() -> None:
         ("task_3", "stop_drug", "The long-horizon scenario favors stopping treatment when uncertainty and harm dominate."),
     ]
 
-    for task_id, action, reasoning in tasks:
+    scores: list[float] = []
+    for index, (task_id, action, reasoning) in enumerate(tasks, start=1):
         score = _grade(args.url, task_id, action, reasoning)
-        print(f"{task_id}: {score:.3f}")
+        scores.append(score)
+        print(
+            f"[STEP] step={index} task={task_id} action={action} score={score:.3f} reasoning={reasoning}",
+            flush=True,
+        )
+
+    average_score = sum(scores) / len(scores)
+    print(
+        f"[END] task=ethical-twin-env score={average_score:.3f} steps={len(tasks)}",
+        flush=True,
+    )
 
 
 if __name__ == "__main__":
