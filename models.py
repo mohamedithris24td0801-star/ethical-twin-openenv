@@ -28,3 +28,34 @@ class StepResult(BaseModel):
     done: bool
     info: Dict[str, Any] = Field(default_factory=dict)
     state: State
+
+
+class ActionRequest(BaseModel):
+    action: str
+
+
+class TaskSpec(BaseModel):
+    name: str
+    description: str
+    grader: str
+    grader_endpoint: str = "/grader"
+
+
+class TasksResponse(BaseModel):
+    tasks: list[TaskSpec]
+
+
+class GraderRequest(BaseModel):
+    task: str
+    predicted: Optional[str] = None
+    correct: Optional[str] = None
+    total_reward: Optional[float] = None
+
+
+class GraderResponse(BaseModel):
+    task: str
+    score: float
+
+
+class MessageResponse(BaseModel):
+    message: str

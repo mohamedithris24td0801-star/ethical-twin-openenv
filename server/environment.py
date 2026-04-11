@@ -11,7 +11,12 @@ class EnvironmentService:
         self.env = EthicalTwinEnv(seed=seed)
         self._state = self._build_state(observation=self.env.reset())
 
-    def _build_state(self, observation: dict, action: str | None = None, target_action: str | None = None) -> State:
+    def _build_state(
+        self,
+        observation: dict[str, float],
+        action: str | None = None,
+        target_action: str | None = None,
+    ) -> State:
         return State(
             step=self.env.current_step,
             done=self.env.done,

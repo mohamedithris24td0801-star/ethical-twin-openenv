@@ -1,5 +1,5 @@
 name: ethical-twin-env
-description: Reinforcement learning clinical dosage simulator
+description: reinforcement learning clinical dosage simulator
 
 actions:
   - low_dose
@@ -10,7 +10,9 @@ actions:
 tasks:
   - name: easy
     grader: graders.easy_grader.grade_easy
+
   - name: medium
     grader: graders.medium_grader.grade_medium
+
   - name: hard
     grader: graders.hard_grader.grade_hard

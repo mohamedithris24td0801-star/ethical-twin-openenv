@@ -4,27 +4,23 @@ import os
 from typing import Any
 
 import requests
-from openai import OpenAI
+
+try:
+    from openai import OpenAI
+except Exception:  # pragma: no cover - optional dependency fallback
+    OpenAI = None
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4.1-mini")
 HF_TOKEN = os.getenv("HF_TOKEN")
 TASK_NAME = os.getenv("TASK_NAME", "easy")
 BENCHMARK_NAME = os.getenv("BENCHMARK", "openenv")
-
-if HF_TOKEN is None:
-    raise ValueError("HF_TOKEN environment variable is required")
-
-client = OpenAI(
-    base_url=API_BASE_URL,
-    api_key=HF_TOKEN
-)
-
-OPENENV_BASE_URL = os.getenv(
-    "OPENENV_BASE_URL",
-    "https://mohamedithris-ethical-twin-env.hf.space",
-).rstrip("/")
+OPENENV_BASE_URL = os.getenv("OPENENV_BASE_URL", "https://mohamedithris-ethical-twin-env.hf.space").rstrip("/")
 ALLOWED_ACTIONS = ["low_dose", "medium_dose", "high_dose", "stop_drug"]
+
+client = None
+if HF_TOKEN and OpenAI is not None:
+    client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
 
 
 def _bool_str(value: bool) -> str:
@@ -38,29 +34,25 @@ def _error_str(message: str | None) -> str:
 
 
 def _choose_action(observation: dict[str, Any]) -> str:
-    prompt = (
-        "Choose exactly one action from this list: low_dose, medium_dose, high_dose, stop_drug. "
-        "Reply with only the action token. "
-        f"Observation={observation}"
-    )
-    try:
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
-            temperature=0,
-            max_tokens=8,
+    if client is not None:
+        prompt = (
+            "Choose exactly one action from this list: low_dose, medium_dose, high_dose, stop_drug. "
+            "Reply with only the action token. "
+            f"Observation={observation}"
         )
-        content = (response.choices[0].message.content or "").strip().lower()
-        content = content.split()[0].strip(".,;:!?\"'()[]{}")
-        if content in ALLOWED_ACTIONS:
-            return content
-    except Exception:
-        pass
+        try:
+            response = client.chat.completions.create(
+                model=MODEL_NAME,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0,
+                max_tokens=8,
+            )
+            content = (response.choices[0].message.content or "").strip().lower()
+            content = content.split()[0].strip(".,;:!?\"'()[]{}")
+            if content in ALLOWED_ACTIONS:
+                return content
+        except Exception:
+            pass
 
     side_effect_risk = float(observation.get("side_effect_risk", 0.0))
     genetic_risk = float(observation.get("genetic_risk", 0.0))
@@ -93,15 +85,8 @@ def main() -> None:
             done = True
             step_no = 1
             rewards.append(0.0)
-            print(
-                f"[STEP] step={step_no} action=stop_drug reward=0.00 done=true "
-                f"error={_error_str(str(exc))}",
-                flush=True,
-            )
-            print(
-                f"[END] success=false steps={step_no} rewards=0.00",
-                flush=True,
-            )
+            print(f"[STEP] step={step_no} action=stop_drug reward=0.00 done=true error={_error_str(str(exc))}", flush=True)
+            print(f"[END] success=false steps={step_no} rewards=0.00", flush=True)
             return
 
         while not done and step_no < 64:
@@ -110,15 +95,11 @@ def main() -> None:
             error_message: str | None = None
 
             try:
-                resp = session.post(
-                    f"{OPENENV_BASE_URL}/step",
-                    json={"action": action},
-                    timeout=20,
-                )
+                resp = session.post(f"{OPENENV_BASE_URL}/step", json={"action": action}, timeout=20)
                 resp.raise_for_status()
                 payload = resp.json()
 
-                if "error" in payload and payload["error"]:
+                if payload.get("error"):
                     done = True
                     had_error = True
                     error_message = str(payload["error"])
@@ -134,17 +115,13 @@ def main() -> None:
             step_no += 1
             rewards.append(reward)
             print(
-                f"[STEP] step={step_no} action={action} reward={reward:.2f} "
-                f"done={_bool_str(done)} error={_error_str(error_message)}",
+                f"[STEP] step={step_no} action={action} reward={reward:.2f} done={_bool_str(done)} error={_error_str(error_message)}",
                 flush=True,
             )
 
     reward_csv = ",".join(f"{value:.2f}" for value in rewards)
     success = (not had_error) and (step_no > 0)
-    print(
-        f"[END] success={_bool_str(success)} steps={step_no} rewards={reward_csv}",
-        flush=True,
-    )
+    print(f"[END] success={_bool_str(success)} steps={step_no} rewards={reward_csv}", flush=True)
 
 
 if __name__ == "__main__":
