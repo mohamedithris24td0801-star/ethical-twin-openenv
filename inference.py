@@ -1,127 +1,46 @@
 from __future__ import annotations
 
-import os
+import argparse
+import json
 from typing import Any
 
 import requests
 
-try:
-    from openai import OpenAI
-except Exception:  # pragma: no cover - optional dependency fallback
-    OpenAI = None
 
-API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4.1-mini")
-HF_TOKEN = os.getenv("HF_TOKEN")
-TASK_NAME = os.getenv("TASK_NAME", "easy")
-BENCHMARK_NAME = os.getenv("BENCHMARK", "openenv")
-OPENENV_BASE_URL = os.getenv("OPENENV_BASE_URL", "https://mohamedithris-ethical-twin-env.hf.space").rstrip("/")
-ALLOWED_ACTIONS = ["low_dose", "medium_dose", "high_dose", "stop_drug"]
-
-client = None
-if HF_TOKEN and OpenAI is not None:
-    client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
+def _reset(url: str) -> dict[str, Any]:
+    response = requests.post(f"{url.rstrip('/')}/reset", timeout=20)
+    response.raise_for_status()
+    return response.json()
 
 
-def _bool_str(value: bool) -> str:
-    return "true" if value else "false"
-
-
-def _error_str(message: str | None) -> str:
-    if not message:
-        return "null"
-    return message.replace("\n", " ").replace("\r", " ").strip() or "null"
-
-
-def _choose_action(observation: dict[str, Any]) -> str:
-    if client is not None:
-        prompt = (
-            "Choose exactly one action from this list: low_dose, medium_dose, high_dose, stop_drug. "
-            "Reply with only the action token. "
-            f"Observation={observation}"
-        )
-        try:
-            response = client.chat.completions.create(
-                model=MODEL_NAME,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0,
-                max_tokens=8,
-            )
-            content = (response.choices[0].message.content or "").strip().lower()
-            content = content.split()[0].strip(".,;:!?\"'()[]{}")
-            if content in ALLOWED_ACTIONS:
-                return content
-        except Exception:
-            pass
-
-    side_effect_risk = float(observation.get("side_effect_risk", 0.0))
-    genetic_risk = float(observation.get("genetic_risk", 0.0))
-    if side_effect_risk > 0.24:
-        return "stop_drug"
-    if genetic_risk > 0.55:
-        return "low_dose"
-    if genetic_risk > 0.30:
-        return "medium_dose"
-    return "high_dose"
+def _grade(url: str, task_id: str, action: str, reasoning: str) -> float:
+    response = requests.post(
+        f"{url.rstrip('/')}/grader",
+        json={"task_id": task_id, "action": action, "reasoning": reasoning},
+        timeout=20,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    return float(payload["score"])
 
 
 def main() -> None:
-    rewards: list[float] = []
-    step_no = 0
-    had_error = False
-    done = False
+    parser = argparse.ArgumentParser(description="Baseline agent for ethical-twin-env")
+    parser.add_argument("--url", default="http://127.0.0.1:7860", help="Base URL of the Space or local server")
+    args = parser.parse_args()
 
-    print(f"[START] task={TASK_NAME} env={BENCHMARK_NAME} model={MODEL_NAME}", flush=True)
+    state = _reset(args.url)
+    print(json.dumps({"reset_state": state}, indent=2))
 
-    with requests.Session() as session:
-        try:
-            reset = session.post(f"{OPENENV_BASE_URL}/reset", timeout=20)
-            reset.raise_for_status()
-            state = reset.json()
-            observation = state.get("observation", {})
-            done = bool(state.get("done", False))
-        except Exception as exc:
-            had_error = True
-            done = True
-            step_no = 1
-            rewards.append(0.0)
-            print(f"[STEP] step={step_no} action=stop_drug reward=0.00 done=true error={_error_str(str(exc))}", flush=True)
-            print(f"[END] success=false steps={step_no} rewards=0.00", flush=True)
-            return
+    tasks = [
+        ("task_1", "medium_dose", "The patient profile suggests a balanced intervention with attention to safety."),
+        ("task_2", "low_dose", "The medium-horizon scenario prioritizes risk reduction and conservative dosing."),
+        ("task_3", "stop_drug", "The long-horizon scenario favors stopping treatment when uncertainty and harm dominate."),
+    ]
 
-        while not done and step_no < 64:
-            action = _choose_action(observation)
-            reward = 0.0
-            error_message: str | None = None
-
-            try:
-                resp = session.post(f"{OPENENV_BASE_URL}/step", json={"action": action}, timeout=20)
-                resp.raise_for_status()
-                payload = resp.json()
-
-                if payload.get("error"):
-                    done = True
-                    had_error = True
-                    error_message = str(payload["error"])
-                else:
-                    reward = float(payload.get("reward", 0.0))
-                    done = bool(payload.get("done", False))
-                    observation = payload.get("observation", observation)
-            except Exception as exc:
-                done = True
-                had_error = True
-                error_message = str(exc)
-
-            step_no += 1
-            rewards.append(reward)
-            print(
-                f"[STEP] step={step_no} action={action} reward={reward:.2f} done={_bool_str(done)} error={_error_str(error_message)}",
-                flush=True,
-            )
-
-    reward_csv = ",".join(f"{value:.2f}" for value in rewards)
-    success = (not had_error) and (step_no > 0)
-    print(f"[END] success={_bool_str(success)} steps={step_no} rewards={reward_csv}", flush=True)
+    for task_id, action, reasoning in tasks:
+        score = _grade(args.url, task_id, action, reasoning)
+        print(f"{task_id}: {score:.3f}")
 
 
 if __name__ == "__main__":

@@ -1,61 +1,31 @@
-"""Pydantic models for the Ethical Twin service."""
+"""Pydantic models for the Ethical Twin environment."""
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 
-class Observation(BaseModel):
+class EthicalAction(BaseModel):
+    task_id: str
+    action: str
+    reasoning: str = ""
+
+
+class EthicalObservation(BaseModel):
     bp: float
     heart_rate: float
     genetic_risk: float
     side_effect_risk: float
 
 
-class State(BaseModel):
+class EthicalState(BaseModel):
+    task_id: str
     step: int = 0
     done: bool = False
-    observation: Observation
-    last_action: Optional[str] = None
-    target_action: Optional[str] = None
-
-
-class StepResult(BaseModel):
-    observation: Observation
-    reward: float
-    done: bool
-    info: Dict[str, Any] = Field(default_factory=dict)
-    state: State
-
-
-class ActionRequest(BaseModel):
-    action: str
-
-
-class TaskSpec(BaseModel):
-    name: str
-    description: str
-    grader: str
-    grader_endpoint: str = "/grader"
-
-
-class TasksResponse(BaseModel):
-    tasks: list[TaskSpec]
-
-
-class GraderRequest(BaseModel):
-    task: str
-    predicted: Optional[str] = None
-    correct: Optional[str] = None
-    total_reward: Optional[float] = None
-
-
-class GraderResponse(BaseModel):
-    task: str
-    score: float
-
-
-class MessageResponse(BaseModel):
-    message: str
+    observation: EthicalObservation
+    last_action: str | None = None
+    reasoning: str = ""
+    score: float = 0.0
+    metadata: dict[str, Any] = Field(default_factory=dict)

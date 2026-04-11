@@ -1,18 +1,6 @@
+spec_version: 1
 name: ethical-twin-env
-description: reinforcement learning clinical dosage simulator
-
-actions:
-  - low_dose
-  - medium_dose
-  - high_dose
-  - stop_drug
-
-tasks:
-  - name: easy
-    grader: graders.easy_grader.grade_easy
-
-  - name: medium
-    grader: graders.medium_grader.grade_medium
-
-  - name: hard
-    grader: graders.hard_grader.grade_hard
+type: space
+runtime: fastapi
+app: server.app:app
+port: 7860
