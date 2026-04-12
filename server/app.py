@@ -89,3 +89,13 @@ def baseline():
         results[task_id] = {"optimal_action": optimal, "score": score}
     avg = sum(r["score"] for r in results.values()) / len(results)
     return {"baseline_scores": results, "average_score": round(avg, 4)}
+
+
+def main():
+    """Main entry point for the Ethical Twin Environment server."""
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+if __name__ == "__main__":
+    main()
