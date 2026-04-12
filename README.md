@@ -1,6 +1,6 @@
 ---
 title: Ethical Twin Environment
-emoji: 🧪
+emoji: ""
 colorFrom: blue
 colorTo: green
 sdk: docker
@@ -12,138 +12,264 @@ pinned: false
 
 # Ethical Twin Environment
 
-This project is a small, beginner-friendly reinforcement learning environment for a virtual clinical trial.
+An end-to-end OpenEnv-style execution environment for ethical decision-making tasks in healthcare-like scenarios.
 
-It creates synthetic patient data and lets an agent choose one of four actions:
+This project provides:
 
-- `low_dose`
-- `medium_dose`
-- `high_dose`
-- `stop_drug`
-
-The environment gives a positive reward when the dosage choice matches the patient risk profile and a negative reward when the choice is unsafe or poorly matched.
+- A FastAPI-based environment server with Gymnasium-style APIs.
+- Multiple task difficulties with explicit graders.
+- A Docker-ready setup for Hugging Face Spaces deployment.
+- An inference entrypoint that emits structured output and uses injected LLM proxy credentials.
 
 ## Links
 
 - GitHub: https://github.com/mohamedithris24td0801-star/ethical-twin-openenv
-- Hugging Face Space: https://huggingface.co/spaces/mohamedithris-ethical-twin-env
+- Hugging Face Space: https://huggingface.co/spaces/mohamedithris/ethical-twin-env
 
-## Project Structure
+## Quick Start
 
-- `env/env.py` - core environment logic
-- `server/app.py` - FastAPI server entrypoint
-- `server/environment.py` - wrapper that converts environment output into models
-- `tasks/` - challenge definitions for easy, medium, and hard levels
-- `graders/` - scoring helpers for each task level
-- `configs/openenv.yaml` - OpenEnv-style environment metadata and action schema
-- `models.py` - Pydantic models for observations, state, and step results
-- `client.py` - simple `requests` client
-- `policy.py` - baseline policy used by local simulation
-- `run_local.py` - local demo using the baseline policy
-- `baseline_inference.py` - script for baseline API interaction
-- `Dockerfile` - container setup for local Docker/Hugging Face Spaces
-
-## Install
-
-Create a virtual environment if you want, then install the dependencies:
+Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Run the local demo
-
-```bash
-python run_local.py
-```
-
-This runs the environment directly and prints each random step until the episode ends after 10 steps.
-
-## Run the API server
+Run API server locally:
 
 ```bash
 uvicorn server.app:app --host 0.0.0.0 --port 7860 --reload
 ```
 
-The server exposes these endpoints:
+Run inference script:
 
-- `POST /reset`
-- `POST /step` with JSON body `{ "action": "medium_dose" }`
-- `GET /state`
+```bash
+python inference.py --url http://127.0.0.1:7860
+```
 
-## Run with Docker
+## Validation-Friendly Inference
 
-Build and run locally:
+The inference pipeline is built for hackathon validators and does the following:
+
+- Prints structured stdout blocks for each task:
+  - [START] task=... action=...
+  - [STEP] step=... reward=...
+  - [END] task=... score=... steps=...
+- Uses flush-enabled prints to avoid buffered-output parsing issues.
+- Uses injected LLM proxy credentials:
+  - API_BASE_URL
+  - API_KEY
+- Makes OpenAI-compatible requests through the provided proxy endpoint.
+
+## OpenEnv-Style API Overview
+
+The server supports simple environment interaction methods:
+
+- POST /reset
+- POST /step
+- GET /state
+
+Additional utility endpoints:
+
+- GET /health
+- GET /tasks
+- POST /grader
+- GET /baseline
+
+## Architecture
+
+### Component Overview
+
+```text
++----------------------------------------------------------+
+|                   Client / Evaluation                    |
+|  - inference.py                                          |
+|  - client.py                                             |
++-----------------------------+----------------------------+
+                              |
+                              | HTTP
+                              v
++----------------------------------------------------------+
+|            FastAPI Environment Server (Docker)           |
+|  - server/app.py                                         |
+|  - server/environment.py                                 |
+|  - Tasks + Graders                                       |
++----------------------------------------------------------+
+```
+
+### Core Components
+
+1. Environment Server
+- File: server/app.py
+- Hosts all REST endpoints and exposes main() entrypoint.
+
+2. Environment Logic
+- File: server/environment.py
+- Handles task state, transitions, and action processing.
+
+3. Tasks
+- Folder: tasks/
+- Contains easy, medium, and hard scenario definitions.
+
+4. Graders
+- Folder: graders/
+- Provides normalized scoring functions with outputs constrained to (0, 1).
+
+5. Inference Runner
+- File: inference.py
+- Calls LLM proxy, chooses actions, calls /grader, and prints structured output.
+
+## Project Structure
+
+```text
+ethical_twin_env/
+|- Dockerfile
+|- openenv.yaml
+|- inference.py
+|- baseline_inference.py
+|- client.py
+|- models.py
+|- policy.py
+|- run_local.py
+|- train_agent.py
+|- requirements.txt
+|- pyproject.toml
+|- server/
+|  |- __init__.py
+|  |- app.py
+|  |- environment.py
+|- env/
+|  |- __init__.py
+|  |- env.py
+|- tasks/
+|  |- __init__.py
+|  |- easy_task.py
+|  |- medium_task.py
+|  |- hard_task.py
+|- graders/
+|  |- __init__.py
+|  |- easy_grader.py
+|  |- medium_grader.py
+|  |- hard_grader.py
+|- configs/
+   |- openenv.yaml
+   |- env/
+   |- graders/
+```
+
+## OpenEnv Manifest
+
+Root manifest: openenv.yaml
+
+Current runtime config includes:
+
+- runtime: fastapi
+- app: server.app:app
+- port: 7860
+- actions:
+  - low_dose
+  - medium_dose
+  - high_dose
+  - stop_drug
+- tasks with explicit grader mappings
+
+Note:
+Keep root openenv.yaml and configs/openenv.yaml aligned.
+
+## Docker and Hugging Face Deployment
+
+Build locally:
 
 ```bash
 docker build -t ethical-twin-env .
+```
+
+Run locally:
+
+```bash
 docker run --rm -p 7860:7860 ethical-twin-env
 ```
 
-The app will be available at `http://localhost:7860`.
+Deploy to HF Space:
 
-## Deploy on Hugging Face Spaces
+1. Create or use a Docker Space.
+2. Push this repository to the Space remote.
+3. Wait for image build and startup.
+4. Test /health, /tasks, /grader.
 
-1. Create a new Space and choose `Docker` as the SDK.
-2. Push this repository (including `Dockerfile`) to the Space.
-3. Hugging Face will build the image and launch `uvicorn` on port `7860`.
-4. After deployment, test endpoints: `POST /reset`, `POST /step`, `GET /state`.
+## Programmatic Usage
 
-## Use the client
-
-With the server running, you can try the client from Python:
+### Async-like Environment Access via HTTP Client
 
 ```python
 from client import EthicalTwinClient
 
-client = EthicalTwinClient()
+client = EthicalTwinClient(base_url="http://127.0.0.1:7860")
 print(client.reset())
 print(client.step("medium_dose"))
 print(client.state())
 ```
 
-## Notes
+### Inference with Injected Proxy Credentials
 
-- The environment uses synthetic data only.
-- The episode ends after 10 steps.
-- The code is intentionally simple so it is easy to extend for experiments.
-- The project is intended to stay within 2 vCPU and 8 GB RAM limits.
+```bash
+set API_BASE_URL=https://your-proxy-url
+set API_KEY=your-proxy-key
+python inference.py --url https://mohamedithris-ethical-twin-env.hf.space
+```
 
-## Tasks
+## Design Principles
 
-The project now includes three beginner-friendly task levels:
+- Simple API surface: reset, step, state.
+- Type-safe models with Pydantic.
+- Secure and isolated deployment with Docker.
+- Explicit scoring and task definitions for transparent evaluation.
+- Validator-ready inference behavior for structured logs and proxy-based LLM usage.
 
-- Easy (`tasks/easy_task.py`): one fixed patient case and one correct action.
-- Medium (`tasks/medium_task.py`): a 5-step simulation task.
-- Hard (`tasks/hard_task.py`): a 10-step optimization task.
+## Development
 
-These tasks can be used to test simple policies and compare different action strategies.
+Run local baseline simulation:
 
-## Grading System
+```bash
+python run_local.py
+```
 
-The `graders` folder contains simple scoring functions:
+Train agent entrypoint:
 
-- `grade_easy(predicted, correct)` returns `0.99` for an exact match, else `0.01`.
-- `grade_medium(total_reward)` normalizes using `total_reward / 5` and clamps to `(0, 1)`.
-- `grade_hard(total_reward)` normalizes using `total_reward / 10` and clamps to `(0, 1)`.
+```bash
+python train_agent.py
+```
 
-This makes evaluation easy to understand while still giving a consistent score range.
+Baseline API scoring run:
 
-## OpenEnv Configuration
+```bash
+python baseline_inference.py
+```
 
-`configs/openenv.yaml` describes the environment in a simple OpenEnv-style format:
+## Requirements
 
-- Environment name and description
-- Observation schema
-- Action list
-- Reward style
-- Available tasks (`easy`, `medium`, `hard`) with explicit grader mappings
+- Python 3.10+
+- Docker Desktop or Docker Engine
+- FastAPI
+- Uvicorn
+- Requests
+- OpenAI SDK (OpenAI-compatible proxy usage)
+- openenv-core
 
-## Real-World Healthcare Use Case
+## Troubleshooting
 
-This project mirrors a safe prototype of treatment optimization in healthcare.
+If validation says structured output is missing:
 
-- Privacy solution: it only uses synthetic patient data, so no real patient records are exposed.
-- Bias solution: tasks and grading are explicit and auditable, making it easier to inspect decisions and improve fairness across different simulated risk profiles.
+- Ensure inference.py is the executed entrypoint.
+- Ensure [START], [STEP], [END] are printed to stdout.
+- Ensure print(..., flush=True) is used.
 
-In real deployments, this kind of setup can be part of testing and validation before any clinical decision support tool is considered for real-world use.
+If validation says no LLM proxy calls were made:
+
+- Ensure API_BASE_URL and API_KEY are read from environment variables.
+- Ensure OpenAI client is initialized with those variables.
+- Ensure no hardcoded key or external provider bypass is used.
+
+## License
+
+This project is provided for educational and hackathon use.
+Use the repository license terms where applicable.
