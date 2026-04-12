@@ -1,6 +1,6 @@
 ---
 title: Ethical Twin Environment
-emoji: ""
+emoji: "🧪"
 colorFrom: blue
 colorTo: green
 sdk: docker
