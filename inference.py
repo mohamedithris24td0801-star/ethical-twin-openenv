@@ -51,6 +51,11 @@ def get_llm_client() -> OpenAI:
     return OpenAI(base_url=api_base_url, api_key=api_key)
 
 
+def probe_proxy(client: OpenAI) -> None:
+    """Make a minimal request so the proxy registration is observable."""
+    client.models.list()
+
+
 def choose_action_with_llm(client: OpenAI, task_id: str, prompt: str) -> tuple[str, str]:
     allowed_actions = [item["action"] for item in BASELINE.values()]
     messages = [
@@ -96,6 +101,7 @@ def choose_action_with_llm(client: OpenAI, task_id: str, prompt: str) -> tuple[s
 def run(base_url: str) -> None:
     base_url = base_url.rstrip("/")
     client = get_llm_client()
+    probe_proxy(client)
     print(f"Running baseline on {base_url}", flush=True)
     total = 0.0
     completed = 0
