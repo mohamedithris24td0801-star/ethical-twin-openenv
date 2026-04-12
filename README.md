@@ -273,3 +273,52 @@ If validation says no LLM proxy calls were made:
 
 This project is provided for educational and hackathon use.
 Use the repository license terms where applicable.
+
+## Evaluation Criteria Alignment
+
+## Evaluation Criteria Alignment
+
+This environment was designed to align with the judging criteria of the Meta PyTorch OpenEnv Hackathon.
+
+### Real-World Utility (30%)
+
+The Ethical Twin Environment simulates clinical dosage decisions using synthetic patient profiles.
+Agents must learn safe treatment strategies based on risk indicators such as side-effect risk and genetic risk.
+This environment can be used to prototype reinforcement learning agents for healthcare decision-support research while preserving patient privacy.
+
+### Task & Grader Quality (25%)
+
+The environment provides three structured tasks:
+
+• Easy — single decision scenario
+• Medium — multi-step treatment adjustment simulation
+• Hard — 10-step treatment optimization problem
+
+Each task has a dedicated grader that evaluates agent performance using normalized reward scores strictly inside the interval (0,1).
+
+### Environment Design (20%)
+
+The environment includes:
+
+• Clearly defined observation space (synthetic patient features)
+• Four discrete actions (low_dose, medium_dose, high_dose, stop_drug)
+• Reward shaping that encourages safe dosage decisions
+• Fixed episode length of 10 steps
+
+This ensures consistent and reproducible reinforcement learning evaluation.
+
+### Code Quality & Spec Compliance (15%)
+
+The project follows the OpenEnv specification:
+
+• FastAPI server exposing `/reset`, `/step`, and `/state`
+• Typed Pydantic models for environment state
+• Clean modular structure (env, server, tasks, graders)
+• Dockerfile for reproducible deployment
+• Hugging Face Space deployment compatible with the OpenEnv validator
+
+### Creativity & Novelty (10%)
+
+The Ethical Twin Environment explores reinforcement learning in healthcare simulation using synthetic patient twins.
+It provides a safe sandbox for experimenting with treatment policies without exposing real patient data.
+
